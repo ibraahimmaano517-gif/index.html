@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Cashier Ledger — Ibrahim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#16202e;
+    --ink-2:#22314a;
+    --paper:#faf6ec;
+    --paper-2:#f1ead9;
+    --green:#2d6a4f;
+    --green-l:#e5f0e9;
+    --gold:#c99a3f;
+    --gold-l:#faf0da;
+    --rust:#a8402f;
+    --rust-l:#fbe9e4;
+    --line:#d9d0ba;
+    --text:#20293a;
+    --muted:#6b6455;
+    --radius:10px;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    background-image:
+      radial-gradient(circle at 15% 0%, #223148 0%, transparent 45%),
+      radial-gradient(circle at 100% 100%, #1c2840 0%, transparent 40%);
+    font-family:var(--font-display);
+    color:var(--text);
+    min-height:100vh;
+    padding:28px 14px 60px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+
+  /* Brand header */
+  .brand{
+    display:flex;align-items:center;justify-content:space-between;
+    color:var(--paper);margin-bottom:18px;padding:0 4px;
+  }
+  .brand-left{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:8px;background:var(--gold);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-weight:700;color:var(--ink);font-size:15px;
+  }
+  .brand h1{font-size:16px;margin:0;letter-spacing:.5px;}
+  .brand span{font-size:11px;color:#9aa7c0;font-family:var(--font-mono);}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:18px;}
+  .tab-btn{
+    flex:1;padding:11px 10px;border-radius:9px;border:1px solid #33415c;
+    background:#1c2840;color:#aab4cc;font-family:var(--font-display);font-weight:600;
+    font-size:13.5px;cursor:pointer;transition:.15s;
+  }
+  .tab-btn.active{background:var(--gold);color:var(--ink);border-color:var(--gold);}
+
+  /* Receipt card w/ torn edges */
+  .receipt{
+    background:var(--paper);
+    border-radius:2px;
+    position:relative;
+    box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
+    margin-bottom:16px;
+  }
+  .torn{height:14px;width:100%;
+    background-image: linear-gradient(135deg, var(--paper) 25%, transparent 25%), linear-gradient(225deg, var(--paper) 25%, transparent 25%);
+    background-size:16px 16px; background-position: bottom;
+    background-color:transparent;
+  }
+  .torn.top{transform:scaleY(-1);margin-bottom:-1px;}
+  .receipt-inner{padding:22px 22px 26px;}
+
+  .rhead{text-align:center;margin-bottom:16px;}
+  .rhead .eyebrow{font-family:var(--font-mono);font-size:10.5px;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+  .rhead h2{font-size:26px;margin:4px 0 2px;letter-spacing:1px;}
+  .rhead .sub{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+
+  .meta-row{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .field{flex:1;min-width:130px;}
+  .field label{display:block;font-size:10.5px;font-family:var(--font-mono);letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+  .field input{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+    background:#fff;font-family:var(--font-mono);font-size:13.5px;color:var(--text);
+  }
+  .field input:focus{outline:2px solid var(--gold);outline-offset:1px;}
+
+  table.ledger{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  table.ledger thead th{
+    font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);
+  }
+  table.ledger thead th.num{text-align:right;}
+  table.ledger tbody td{padding:7px 6px;border-bottom:1px dashed var(--line);vertical-align:middle;}
+  table.ledger tbody tr.group-start td{border-top:1px solid var(--line);padding-top:11px;}
+  .rowlabel{font-size:12.5px;font-weight:600;}
+  .rowlabel small{display:block;font-weight:400;font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  td.num{text-align:right;}
+  input.cell{
+    width:100%;max-width:120px;text-align:right;padding:6px 8px;border:1px solid var(--line);
+    border-radius:6px;background:#fff;font-family:var(--font-mono);font-size:12.5px;
+  }
+  input.cell:disabled{background:var(--paper-2);color:var(--muted);border-color:transparent;}
+  .dash{color:var(--muted);font-family:var(--font-mono);font-size:12.5px;}
+
+  .totals{margin-top:14px;border-top:2px solid var(--ink);padding-top:12px;}
+  .trow{display:flex;justify-content:space-between;align-items:center;padding:7px 4px;font-family:var(--font-mono);font-size:13px;}
+  .trow.big{font-size:15px;font-weight:700;}
+  .trow .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;}
+  .trow.pos{background:var(--gold-l);border-radius:7px;padding:10px;margin-top:4px;}
+  .trow.pos input{width:140px;text-align:right;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-family:var(--font-mono);}
+
+  .defence{
+    margin-top:10px;border-radius:9px;padding:14px;text-align:center;
+    font-family:var(--font-mono);
+  }
+  .defence.balanced{background:var(--green-l);color:var(--green);}
+  .defence.short{background:var(--rust-l);color:var(--rust);}
+  .defence.over{background:var(--gold-l);color:#8a6a1f;}
+  .defence .amt{font-size:22px;font-weight:700;}
+  .defence .tag{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;}
+
+  .actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+  .btn{
+    flex:1;min-width:120px;padding:12px 14px;border-radius:8px;border:none;
+    font-family:var(--font-display);font-weight:600;font-size:13px;cursor:pointer;
+    transition:.15s;
+  }
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-primary:hover{background:var(--ink-2);}
+  .btn-secondary{background:var(--paper-2);color:var(--text);border:1px solid var(--line);}
+  .btn-secondary:hover{background:#e7dfc8;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .status{font-family:var(--font-mono);font-size:11.5px;text-align:center;margin-top:10px;color:var(--muted);min-height:14px;}
+  .status.ok{color:var(--green);}
+  .status.err{color:var(--rust);}
+
+  /* History */
+  .hist-toolbar{display:flex;gap:8px;margin-bottom:12px;}
+  .hist-toolbar input{flex:1;padding:9px 10px;border-radius:7px;border:1px solid var(--line);font-family:var(--font-mono);font-size:12.5px;}
+  table.hist{width:100%;border-collapse:collapse;}
+  table.hist th{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+  table.hist td{padding:9px 6px;border-bottom:1px dashed var(--line);font-size:12.5px;}
+  table.hist td.num{font-family:var(--font-mono);text-align:right;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-family:var(--font-mono);font-size:10.5px;}
+  .badge.ok{background:var(--green-l);color:var(--green);}
+  .badge.bad{background:var(--rust-l);color:var(--rust);}
+  .row-actions{display:flex;gap:6px;}
+  .icon-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px;}
+  .icon-btn:hover{background:var(--paper-2);}
+  .empty{text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;padding:30px 10px;}
+
+  @media (max-width:520px){
+    .receipt-inner{padding:16px 14px 20px;}
+    table.ledger thead th:nth-child(2), table.hist th:nth-child(4){display:none;}
+    input.cell{max-width:90px;font-size:11.5px;}
+    .rhead h2{font-size:21px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <div class="brand-left">
+      <div class="brand-mark">$</div>
+      <div>
+        <h1>Cashier Ledger</h1>
+        <span>daily reconciliation</span>
+      </div>
+    </div>
+    <span id="clock"></span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-new-btn" onclick="switchTab('new')">New Report</button>
+    <button class="tab-btn" id="tab-hist-btn" onclick="switchTab('history')">History</button>
+  </div>
+
+  <!-- NEW REPORT -->
+  <div id="tab-new">
+  <div class="receipt">
+    <div class="torn top"></div>
+    <div class="receipt-inner">
+      <div class="rhead">
+        <div class="eyebrow">Somaliland Shilling · US Dollar</div>
+        <h2>CASHIER</h2>
+        <div class="sub" id="today-label"></div>
+      </div>
+
+      <div class="meta-row">
+        <div class="field">
+          <label>Cashier</label>
+          <input type="text" id="f-cashier" value="Ibrahim">
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="field">
+          <label>Exchange rate (SLSH per $1)</label>
+          <input type="number" id="f-rate" placeholder="e.g. 8700" min="0" step="any">
+        </div>
+      </div>
+
+      <table class="ledger">
+        <thead>
+          <tr><th>Channel</th><th class="num">SLSH</th><th class="num">Dollar</th></tr>
+        </thead>
+        <tbody id="ledger-body"></tbody>
+      </table>
+
+      <div class="totals">
+        <div class="trow"><span class="lbl">Total SLSH</span><span id="t-slsh">SLSH 0.00</span></div>
+        <div class="trow big"><span class="lbl">Total Amount</span><span id="t-dollar">$0.00</span></div>
+        <div class="trow pos">
+          <span class="lbl">Total Receipts POS</span>
+          <input type="number" id="f-pos" placeholder="0.00" min="0" step="any">
+        </div>
+      </div>
+
+      <div class="defence balanced" id="defence-box">
+        <div class="tag">Defence</div>
+        <div class="amt" id="defence-amt">$0.00</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="save-btn" onclick="saveReport()">Save to Supabase</button>
+        <button class="btn btn-secondary" onclick="downloadCurrentExcel()">Download Excel</button>
+      </div>
+      <div class="status" id="save-status"></div>
+    </div>
+    <div class="torn"></div>
+  </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="tab-hist" style="display:none;">
+  <div class="receipt">
+    <div class="torn top"></div>
+    <div class="receipt-inner">
+      <div class="rhead">
+        <div class="eyebrow">Saved reports</div>
+        <h2>HISTORY</h2>
+      </div>
+
+      <div class="hist-toolbar">
+        <input type="text" id="hist-search" placeholder="Filter by cashier or date (YYYY-MM-DD)" oninput="renderHistory()">
+        <button class="btn btn-secondary" style="flex:0 0 auto;min-width:auto;" onclick="downloadAllExcel()">Download All</button>
+      </div>
+
+      <div id="hist-wrap">
+        <table class="hist">
+          <thead><tr><th>Date</th><th>Cashier</th><th class="num">Total</th><th class="num">POS</th><th>Status</th><th></th></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+        <div class="empty" id="hist-empty" style="display:none;">No reports yet — save your first report to see it here.</div>
+      </div>
+      <div class="status" id="hist-status"></div>
+    </div>
+    <div class="torn"></div>
+  </div>
+  </div>
+
+</div>
+
+<script>
+// ---------- Supabase ----------
+const SUPABASE_URL = 'https://nnzihbqdjkyhrhgilyrp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JVbIiL2sblv3S5mOTfCR7A_lvvFp4Fb';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+});
+
+// ---------- Channel definitions ----------
+const CHANNELS = [
+  {key:'cash_usd',              label:'Cash USD',            note:'',        type:'dollar', group:true},
+  {key:'cash_slsh',              label:'Cash SLSH',           note:'',        type:'slsh'},
+  {key:'zaad_dollar_513305',     label:'Zaad Dollar',         note:'513305',  type:'dollar', group:true},
+  {key:'zaad_slsh_513305',       label:'Zaad SLSH',           note:'513305',  type:'slsh'},
+  {key:'zaad_dollar_516219',     label:'Zaad Dollar',         note:'516219',  type:'dollar', group:true},
+  {key:'zaad_slsh_516219',       label:'Zaad SLSH',           note:'516219',  type:'slsh'},
+  {key:'edahab_dollar_726212',   label:'Edahab Dollar',       note:'726212',  type:'dollar', group:true},
+  {key:'edahab_slsh_726212',     label:'Edahab SLSH',         note:'726212',  type:'slsh'},
+  {key:'edahab_dollar_758227',   label:'Edahab Dollar',       note:'758227',  type:'dollar', group:true},
+  {key:'edahab_slsh_758227',     label:'Edahab SLSH',         note:'758227',  type:'slsh'},
+  {key:'premier_dollar',         label:'Premier Dollar',      note:'',        type:'dollar', group:true},
+  {key:'premier_slsh',           label:'Premier SLSH',        note:'',        type:'slsh'},
+];
+
+// ---------- Build ledger rows ----------
+const body = document.getElementById('ledger-body');
+CHANNELS.forEach(ch=>{
+  const tr = document.createElement('tr');
+  if(ch.group) tr.className='group-start';
+  tr.innerHTML = `
+    <td><div class="rowlabel">${ch.label}${ch.note?` <small>${ch.note}</small>`:''}</div></td>
+    <td class="num">${ch.type==='slsh' ? `<input class="cell" type="number" min="0" step="any" data-key="${ch.key}" data-type="slsh" placeholder="0.00" oninput="recalc()">` : `<span class="dash">—</span>`}</td>
+    <td class="num">${ch.type==='dollar' ? `<input class="cell" type="number" min="0" step="any" data-key="${ch.key}" data-type="dollar" placeholder="0.00" oninput="recalc()">` : `<input class="cell" disabled data-out="${ch.key}" value="$0.00">`}</td>
+  `;
+  body.appendChild(tr);
+});
+
+// ---------- Header helpers ----------
+function fmtUSD(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtSLSH(n){ return 'SLSH ' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+const dateInput = document.getElementById('f-date');
+const today = new Date();
+dateInput.value = today.toISOString().slice(0,10);
+document.getElementById('today-label').textContent = today.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+function tickClock(){ document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+tickClock(); setInterval(tickClock,30000);
+
+// ---------- Calculation ----------
+function getValues(){
+  const vals = {};
+  CHANNELS.forEach(ch=>{
+    const el = document.querySelector(`[data-key="${ch.key}"]`);
+    vals[ch.key] = el ? (parseFloat(el.value)||0) : 0;
+  });
+  return vals;
+}
+
+function recalc(){
+  const rate = parseFloat(document.getElementById('f-rate').value) || 0;
+  const vals = getValues();
+  let totalSlsh = 0, totalDollar = 0;
+
+  CHANNELS.forEach(ch=>{
+    if(ch.type==='slsh'){
+      const slsh = vals[ch.key];
+      totalSlsh += slsh;
+      const dollarEq = rate>0 ? slsh/rate : 0;
+      totalDollar += dollarEq;
+      const out = document.querySelector(`[data-out="${ch.key}"]`);
+      if(out) out.value = fmtUSD(dollarEq);
+    } else {
+      totalDollar += vals[ch.key];
+    }
+  });
+
+  document.getElementById('t-slsh').textContent = fmtSLSH(totalSlsh);
+  document.getElementById('t-dollar').textContent = fmtUSD(totalDollar);
+
+  const pos = parseFloat(document.getElementById('f-pos').value) || 0;
+  const defence = totalDollar - pos;
+  const box = document.getElementById('defence-box');
+  const amtEl = document.getElementById('defence-amt');
+  amtEl.textContent = (defence>=0?'+':'-') + fmtUSD(Math.abs(defence)).replace('$','$');
+  box.className = 'defence ' + (Math.abs(defence) < 0.005 ? 'balanced' : (defence < 0 ? 'short' : 'over'));
+  box.querySelector('.tag').textContent = Math.abs(defence) < 0.005 ? 'Defence — Balanced' : (defence < 0 ? 'Defence — Short' : 'Defence — Over');
+
+  return {rate, vals, totalSlsh, totalDollar, pos, defence};
+}
+document.getElementById('f-rate').addEventListener('input', recalc);
+document.getElementById('f-pos').addEventListener('input', recalc);
+recalc();
+
+// ---------- Save to Supabase ----------
+async function saveReport(){
+  const btn = document.getElementById('save-btn');
+  const statusEl = document.getElementById('save-status');
+  const calc = recalc();
+  const cashier = document.getElementById('f-cashier').value.trim() || 'Ibrahim';
+  const date = document.getElementById('f-date').value;
+
+  const row = {
+    report_date: date,
+    cashier_name: cashier,
+    rate: calc.rate,
+    ...calc.vals,
+    total_receipts_pos: calc.pos,
+    total_amount_dollar: calc.totalDollar,
+    defence: calc.defence
+  };
+
+  btn.disabled = true;
+  statusEl.className='status'; statusEl.textContent='Saving…';
+  try{
+    const {error} = await sb.from('report').insert(row);
+    if(error) throw error;
+    statusEl.className='status ok'; statusEl.textContent='Saved ✓ — visible in History';
+    if(_historyCache) await loadHistory();
+  }catch(e){
+    statusEl.className='status err'; statusEl.textContent='Could not save: ' + e.message;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------- Excel export (current form) ----------
+function downloadCurrentExcel(){
+  const calc = recalc();
+  const cashier = document.getElementById('f-cashier').value.trim() || 'Ibrahim';
+  const date = document.getElementById('f-date').value;
+  const wsData = buildSheetRows(cashier, date, calc);
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:24},{wch:16},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cashier');
+  XLSX.writeFile(wb, `cashier-${cashier.replace(/\s+/g,'_')}-${date}.xlsx`);
+}
+
+function buildSheetRows(cashier, date, calc){
+  const rows = [];
+  rows.push(['CASHIER','','']);
+  rows.push(['Cashier', cashier, '']);
+  rows.push(['Date', date, '']);
+  rows.push(['Rate', calc.rate, '']);
+  rows.push(['','SLSH','DOLLAR']);
+  CHANNELS.forEach(ch=>{
+    const label = ch.note ? `${ch.label} ${ch.note}` : ch.label;
+    if(ch.type==='slsh'){
+      const slsh = calc.vals[ch.key];
+      const dollarEq = calc.rate>0 ? slsh/calc.rate : 0;
+      rows.push([label, slsh, Number(dollarEq.toFixed(2))]);
+    } else {
+      rows.push([label, '', calc.vals[ch.key]]);
+    }
+  });
+  rows.push(['Total amount', Number(calc.totalSlsh.toFixed(2)), Number(calc.totalDollar.toFixed(2))]);
+  rows.push(['Total Receipts POS', '', calc.pos]);
+  rows.push(['DEFENCE', '', Number(calc.defence.toFixed(2))]);
+  return rows;
+}
+
+// ---------- History ----------
+let _historyCache = null;
+
+function switchTab(tab){
+  document.getElementById('tab-new').style.display = tab==='new' ? '' : 'none';
+  document.getElementById('tab-hist').style.display = tab==='history' ? '' : 'none';
+  document.getElementById('tab-new-btn').classList.toggle('active', tab==='new');
+  document.getElementById('tab-hist-btn').classList.toggle('active', tab==='history');
+  if(tab==='history') loadHistory();
+}
+
+async function loadHistory(){
+  const statusEl = document.getElementById('hist-status');
+  statusEl.className='status'; statusEl.textContent='Loading…';
+  try{
+    const {data, error} = await sb.from('report').select('*').order('report_date',{ascending:false}).order('created_at',{ascending:false});
+    if(error) throw error;
+    _historyCache = data || [];
+    statusEl.textContent='';
+    renderHistory();
+  }catch(e){
+    statusEl.className='status err'; statusEl.textContent='Could not load history: ' + e.message;
+  }
+}
+
+function renderHistory(){
+  const q = (document.getElementById('hist-search').value||'').toLowerCase();
+  const tbody = document.getElementById('hist-body');
+  const emptyEl = document.getElementById('hist-empty');
+  tbody.innerHTML='';
+  const rows = (_historyCache||[]).filter(r =>
+    !q || (r.cashier_name||'').toLowerCase().includes(q) || (r.report_date||'').includes(q)
+  );
+  emptyEl.style.display = rows.length ? 'none' : '';
+  rows.forEach(r=>{
+    const balanced = Math.abs(r.defence) < 0.005;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.report_date}</td>
+      <td>${r.cashier_name}</td>
+      <td class="num">${fmtUSD(r.total_amount_dollar)}</td>
+      <td class="num">${fmtUSD(r.total_receipts_pos)}</td>
+      <td><span class="badge ${balanced?'ok':'bad'}">${balanced ? 'Balanced' : (r.defence<0?'Short '+fmtUSD(Math.abs(r.defence)):'Over '+fmtUSD(r.defence))}</span></td>
+      <td class="row-actions">
+        <button class="icon-btn" title="Download Excel" onclick='downloadRowExcel(${JSON.stringify(r).replace(/'/g,"&apos;")})'>⭳</button>
+        <button class="icon-btn" title="Delete" onclick="deleteReport('${r.id}')">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function downloadRowExcel(r){
+  const calc = { rate:r.rate, vals:r, totalSlsh:0, totalDollar:r.total_amount_dollar, pos:r.total_receipts_pos, defence:r.defence };
+  CHANNELS.forEach(ch=>{ if(ch.type==='slsh') calc.totalSlsh += Number(r[ch.key])||0; });
+  const wsData = buildSheetRows(r.cashier_name, r.report_date, calc);
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:24},{wch:16},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cashier');
+  XLSX.writeFile(wb, `cashier-${r.cashier_name.replace(/\s+/g,'_')}-${r.report_date}.xlsx`);
+}
+
+async function deleteReport(id){
+  if(!confirm('Delete this report? This cannot be undone.')) return;
+  try{
+    const {error} = await sb.from('report').delete().eq('id', id);
+    if(error) throw error;
+    await loadHistory();
+  }catch(e){
+    alert('Could not delete: ' + e.message);
+  }
+}
+
+function downloadAllExcel(){
+  if(!_historyCache || !_historyCache.length){ alert('No reports to export yet.'); return; }
+  const summary = [['Date','Cashier','Rate','Total SLSH','Total Amount ($)','Total Receipts POS ($)','Defence ($)']];
+  _historyCache.forEach(r=>{
+    let totalSlsh = 0;
+    CHANNELS.forEach(ch=>{ if(ch.type==='slsh') totalSlsh += Number(r[ch.key])||0; });
+    summary.push([r.report_date, r.cashier_name, r.rate, Number(totalSlsh.toFixed(2)), Number(r.total_amount_dollar).toFixed(2), Number(r.total_receipts_pos).toFixed(2), Number(r.defence).toFixed(2)]);
+  });
+  const wb = XLSX.utils.book_new();
+  const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+  wsSummary['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:14},{wch:16},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  _historyCache.forEach((r,i)=>{
+    let totalSlsh = 0;
+    CHANNELS.forEach(ch=>{ if(ch.type==='slsh') totalSlsh += Number(r[ch.key])||0; });
+    const calc = { rate:r.rate, vals:r, totalSlsh, totalDollar:r.total_amount_dollar, pos:r.total_receipts_pos, defence:r.defence };
+    const wsData = buildSheetRows(r.cashier_name, r.report_date, calc);
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{wch:24},{wch:16},{wch:16}];
+    let sheetName = `${r.report_date}`.slice(0,20) || `Report${i+1}`;
+    // sheet names must be unique & <=31 chars
+    let n = sheetName, c = 1;
+    while(wb.SheetNames.includes(n)){ n = sheetName+'_'+(c++); }
+    XLSX.utils.book_append_sheet(wb, ws, n);
+  });
+
+  XLSX.writeFile(wb, `cashier-reports-all.xlsx`);
+}
+</script>
+</body>
+</html>
